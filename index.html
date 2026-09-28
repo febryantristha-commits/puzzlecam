@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Puzzle Cam — Photobooth Jadul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
+  :root{--ink:#4A3426;--ink-soft:#7a5a3e;--cream:#F3E9D2;--terra:#B5523B}
+ 
+  body{
+    font-family:'Special Elite',monospace;color:var(--ink);min-height:100vh;
+    background:#c9ad85 url("assets/paper-grid.jpg") center/cover fixed;
+    background-blend-mode:multiply;
+    padding:44px 18px 80px;position:relative;overflow-x:hidden;
+  }
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(45,26,12,.5) 100%)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.07;
+    background-image:radial-gradient(circle at 1px 1px,#000 1px,transparent 0);background-size:3px 3px}
+  main,header,.panel,.tabs{position:relative;z-index:1}
+ 
+  header{text-align:center;margin-bottom:26px}
+  .stamp-badge{display:inline-block;font-size:12px;letter-spacing:3px;padding:6px 16px;
+    border:3px double var(--terra);color:var(--terra);transform:rotate(-2deg);margin-bottom:14px;background:rgba(243,233,210,.5)}
+  h1{font-weight:400;font-size:clamp(34px,7vw,52px);letter-spacing:2px;text-shadow:2px 2px 0 rgba(243,233,210,.7)}
+  header p{font-family:'Caveat',cursive;font-size:26px;color:var(--ink-soft);margin-top:2px}
+ 
+  .tabs{display:flex;gap:10px;justify-content:center;margin-bottom:34px}
+  .tab{font:400 16px 'Special Elite',monospace;padding:10px 22px;border:2px solid var(--ink);background:rgba(243,233,210,.65);
+    color:var(--ink);cursor:pointer;border-radius:3px;letter-spacing:1px;transition:transform .15s}
+  .tab.active{background:var(--ink);color:var(--cream);transform:rotate(-1.5deg)}
+  .tab:disabled{opacity:.6;cursor:not-allowed}
+ 
+  /* watermark */
+  .page-wm{position:fixed;left:16px;bottom:12px;z-index:60;font:400 15px 'Special Elite',monospace;color:rgba(74,52,38,.6);
+    letter-spacing:2px;transform:rotate(-3deg);pointer-events:none;text-shadow:1px 1px 0 rgba(243,233,210,.6)}
+  .wm{position:absolute;right:10px;bottom:8px;z-index:6;font:400 15px 'Special Elite',monospace;color:rgba(255,255,255,.9);
+    text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none;letter-spacing:1px}
+ 
+  .stage{display:flex;flex-wrap:wrap;gap:44px 56px;justify-content:center;align-items:flex-start}
+  .booth{width:min(440px,92vw)}
+  .printer,.puzzle-col{width:min(300px,92vw);padding-top:6px}
+  body[data-mode="puzzle"] .printer{display:none}
+  body[data-mode="booth"] .puzzle-col{display:none}
+  body[data-mode="puzzle"] [data-only="booth"]{display:none}
+  body[data-mode="booth"] [data-only="puzzle"]{display:none}
+ 
+  /* ===== PREVIEW KAMERA ===== */
+  .cam-wrapper{position:relative;width:100%;transform:rotate(-1deg);transition:background .3s,padding .3s}
+  .video-box{position:relative;overflow:hidden;aspect-ratio:var(--ar,4 / 3);background:#2a1d14}
+  .video-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+  body[data-filter="normal"] .video-box video{filter:none}
+  body[data-filter="bw"] .video-box video{filter:grayscale(1) contrast(1.1)}
+  body[data-filter="sepia"] .video-box video{filter:sepia(.85) contrast(1.05) saturate(1.1)}
+  body[data-filter="pudar"] .video-box video{filter:sepia(.35) saturate(.8) contrast(.9) brightness(1.08)}
+  .leak{position:absolute;inset:0;background:url("assets/light-leak.jpg") center/cover;mix-blend-mode:screen;opacity:0;transition:opacity .4s;pointer-events:none}
+  body.leak-on .leak{opacity:.45}
+  .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(30,15,5,.4))}
+  .count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;color:#F3E9D2;
+    text-shadow:0 4px 0 rgba(0,0,0,.35);pointer-events:none}
+  .count.pop{animation:pop .9s ease-out}
+  @keyframes pop{0%{transform:scale(1.7);opacity:0}25%{opacity:1}100%{transform:scale(.9);opacity:.9}}
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+  .flash.go{animation:flash .5s ease-out}
+  @keyframes flash{0%{opacity:.95}100%{opacity:0}}
+ 
+  .tape,.sticker{position:absolute;display:none;pointer-events:none;z-index:5;filter:drop-shadow(0 3px 5px rgba(0,0,0,.3))}
+  .cap{display:none;position:absolute;left:0;right:0;bottom:16px;text-align:center;font-family:'Caveat',cursive;font-weight:600;font-size:30px;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ 
+  [data-theme="krem"] .cam-wrapper{background:#F3E9D2;padding:16px 16px 68px;box-shadow:0 18px 36px rgba(40,22,10,.45);border-radius:3px}
+  [data-theme="krem"] .tape-cream{display:block;top:-16px;left:50%;width:120px;transform:translateX(-50%) rotate(-3deg)}
+  [data-theme="krem"] .sticker-maple{display:block;right:-16px;bottom:-24px;width:74px;transform:rotate(8deg)}
+  [data-theme="krem"] .cap{display:block;color:#4A3426}
+  [data-theme="kraft"] .cam-wrapper{background:#C9A57B;padding:16px 16px 68px;box-shadow:0 18px 36px rgba(40,22,10,.45);border-radius:3px}
+  [data-theme="kraft"] .tape-rose{display:block;top:2px;left:-26px;width:112px;transform:rotate(-40deg)}
+  [data-theme="kraft"] .sticker-floral{display:block;right:-14px;bottom:-22px;width:66px;transform:rotate(-7deg)}
+  [data-theme="kraft"] .cap{display:block;color:#3b2717}
+  [data-theme="film"] .cam-wrapper{background:#1b110b;padding:34px 18px;box-shadow:0 18px 36px rgba(40,22,10,.5)}
+  [data-theme="film"] .cam-wrapper::before,[data-theme="film"] .cam-wrapper::after{content:"";position:absolute;left:14px;right:14px;height:12px;border-radius:2px;opacity:.85;
+    background:repeating-linear-gradient(90deg,#d8c8a4 0 16px,transparent 16px 30px)}
+  [data-theme="film"] .cam-wrapper::before{top:11px}
+  [data-theme="film"] .cam-wrapper::after{bottom:11px}
+  [data-theme="prangko"] .cam-wrapper{padding:0 0 50px;border:38px solid transparent;border-image:url("assets/stamp-frame.png") 72 fill / 38px round;
+    filter:drop-shadow(0 16px 18px rgba(40,22,10,.45))}
+  [data-theme="prangko"] .tape-kraft{display:block;top:-62px;left:50%;width:130px;transform:translateX(-50%) rotate(2deg)}
+  [data-theme="prangko"] .cap{display:block;color:#7a2e22;bottom:8px}
+ 
+  .shoot{display:block;margin:34px auto 0;font:400 20px 'Special Elite',monospace;letter-spacing:2px;padding:14px 30px;cursor:pointer;
+    color:var(--cream);background:var(--terra);border:3px double var(--cream);outline:3px solid var(--terra);border-radius:4px;
+    box-shadow:0 8px 0 #7d3423,0 14px 20px rgba(40,22,10,.4);transition:transform .1s,box-shadow .1s}
+  .shoot:active:not(:disabled){transform:translateY(5px);box-shadow:0 3px 0 #7d3423,0 8px 12px rgba(40,22,10,.4)}
+  .shoot:disabled{opacity:.6;cursor:wait}
+  .status{text-align:center;margin-top:24px;font-size:15px;color:var(--ink-soft);min-height:22px}
+  .msg{margin-top:14px;padding:10px 14px;background:rgba(243,233,210,.9);border:2px dashed var(--terra);color:#7a2e22;font-size:14px}
+ 
+  /* ===== KAMERA GENERIK + STRIP KELUAR ===== */
+  .camera{position:relative;z-index:3;width:264px;height:150px;margin:0 auto}
+  .camera.shake{animation:shake .12s infinite}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-1.5px)}75%{transform:translateX(1.5px)}}
+  .cam-body{position:absolute;inset:14px 0 0 0;background:linear-gradient(#efe3c6,#d9c7a1);border:3px solid #3e2a1c;border-radius:20px 20px 10px 10px;
+    box-shadow:0 14px 24px rgba(40,22,10,.4),inset 0 -8px 0 rgba(0,0,0,.08)}
+  .cam-band{position:absolute;left:0;right:0;top:44px;height:62px;border-top:3px solid #3e2a1c;border-bottom:3px solid #3e2a1c;
+    background:#5b3d2a repeating-linear-gradient(90deg,rgba(0,0,0,.14) 0 2px,transparent 2px 6px)}
+  .cam-lens{position:absolute;left:50%;top:24px;width:96px;height:96px;margin-left:-48px;border-radius:50%;border:7px solid #2b1e14;
+    background:radial-gradient(circle at 34% 30%,#5d7391 0 8%,#1b2230 32%,#06080c 70%);box-shadow:0 0 0 5px #b79a6b,0 6px 10px rgba(0,0,0,.4)}
+  .cam-lens::after{content:"";position:absolute;left:20px;top:16px;width:16px;height:10px;border-radius:50%;background:rgba(255,255,255,.55);transform:rotate(-25deg)}
+  .cam-flash{position:absolute;left:16px;top:14px;width:46px;height:26px;border-radius:5px;border:3px solid #3e2a1c;background:linear-gradient(135deg,#fff,#cfd6da)}
+  .cam-finder{position:absolute;right:16px;top:14px;width:34px;height:26px;border-radius:5px;border:3px solid #3e2a1c;background:#14100c}
+  .cam-btn{position:absolute;right:38px;top:4px;width:30px;height:16px;border-radius:6px 6px 0 0;background:var(--terra);border:3px solid #3e2a1c;border-bottom:0;z-index:2}
+  .cam-slot{position:absolute;left:50%;bottom:-2px;width:224px;height:12px;margin-left:-112px;background:#120a06;border-radius:3px 3px 6px 6px}
+  .eject-window{position:relative;z-index:2;width:220px;margin:-8px auto 0;overflow:hidden;height:0}
+  .strip-out{transform:translateY(-101%)}
+  .strip-out img{display:block;width:100%;filter:drop-shadow(0 8px 8px rgba(0,0,0,.35))}
+  .strip-out.go{animation:eject 4s forwards}
+  @keyframes eject{
+    0%{transform:translateY(-101%)}12%{transform:translateY(-92%)}24%{transform:translateY(-92%)}
+    38%{transform:translateY(-66%)}50%{transform:translateY(-66%)}66%{transform:translateY(-32%)}
+    78%{transform:translateY(-32%)}100%{transform:translateY(0)}}
+  .actions{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap}
+  .printer-hint{text-align:center;font-family:'Caveat',cursive;font-size:24px;color:var(--ink-soft);margin-top:16px}
+ 
+  /* ===== PUZZLE ===== */
+  .p-frame{position:relative;background:var(--cream);padding:14px;box-shadow:0 18px 36px rgba(40,22,10,.45);border-radius:3px;transform:rotate(1deg)}
+  .p-frame .tape-p{display:block;top:-14px;left:50%;width:110px;transform:translateX(-50%) rotate(-3deg)}
+  .p-hud{display:flex;justify-content:space-between;font-size:14px;margin-bottom:10px;color:var(--ink-soft)}
+  .board{position:relative;width:100%;aspect-ratio:1;background:#2a1d14;overflow:hidden;border:2px solid #3e2a1c}
+  .tile{position:absolute;left:0;top:0;cursor:pointer;background-repeat:no-repeat;box-shadow:inset 0 0 0 2px rgba(243,233,210,.85);transition:transform .16s ease,opacity .5s}
+  .tile span{position:absolute;left:5px;top:4px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;font:400 12px/20px 'Special Elite',monospace;
+    text-align:center;background:rgba(243,233,210,.85);color:var(--ink)}
+  .tile.blank{opacity:0;pointer-events:none}
+  .board.done .tile{box-shadow:none;cursor:default}
+  .board.done .tile span{display:none}
+  .board.done .tile.blank{opacity:1}
+  .peek{position:absolute;inset:0;z-index:5;background-size:cover;cursor:pointer}
+  .puzzle-empty{padding:70px 16px;text-align:center;font-size:15px;color:var(--ink-soft);border:2px dashed var(--ink-soft);background:rgba(74,52,38,.06)}
+  .win{margin-top:20px;text-align:center;padding:10px;border:3px double var(--terra);color:var(--terra);background:rgba(243,233,210,.92);transform:rotate(-2deg);font-size:18px}
+ 
+  /* ===== PANEL KONTROL ===== */
+  .panel{max-width:780px;margin:56px auto 0;background:rgba(243,233,210,.93);border:2px dashed var(--ink-soft);border-radius:6px;padding:26px 24px 12px;box-shadow:0 10px 24px rgba(40,22,10,.3)}
+  .panel-tape{position:absolute;top:-16px;left:50%;width:120px;transform:translateX(-50%) rotate(-2deg);filter:drop-shadow(0 3px 4px rgba(0,0,0,.3));pointer-events:none}
+  .panel h3{font-weight:400;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;align-items:center}
+  .opt{font:400 14px 'Special Elite',monospace;padding:8px 14px;border:2px solid var(--ink);background:transparent;color:var(--ink);border-radius:3px;cursor:pointer;transition:transform .15s}
+  .opt:hover{background:rgba(74,52,38,.1)}
+  .opt.active{background:var(--terra);border-color:var(--terra);color:var(--cream);transform:rotate(-1.5deg)}
+  .opt:disabled{opacity:.5;cursor:not-allowed}
+  .chk{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;margin-right:12px}
+  .chk input{width:18px;height:18px;accent-color:var(--terra)}
+  input[type=text]{font:400 15px 'Special Elite',monospace;padding:8px 12px;border:2px solid var(--ink);background:#fbf5e6;color:var(--ink);border-radius:3px;width:min(320px,100%)}
+</style>
+</head>
+<body data-theme="krem" data-filter="pudar" data-mode="booth" class="leak-on">
+ 
+<header>
+  <div class="stamp-badge">PHOTOBOOTH · EST. 2026</div>
+  <h1>Puzzle Cam</h1>
+  <p>jepret, cetak, susun kenangannya</p>
+</header>
+ 
+<nav class="tabs">
+  <button class="tab active" data-mode="booth">📷 Photobooth</button>
+  <button class="tab" data-mode="puzzle">🧩 Puzzle</button>
+</nav>
+ 
+<main class="stage">
+  <section class="booth">
+    <div class="cam-wrapper" id="camWrapper">
+      <img class="tape tape-cream" src="assets/tape-cream.png" alt="" />
+      <img class="tape tape-rose" src="assets/tape-rose.png" alt="" />
+      <img class="tape tape-kraft" src="assets/tape-kraft.png" alt="" />
+      <div class="video-box">
+        <video id="webcam" autoplay playsinline muted></video>
+        <div class="leak"></div><div class="vig"></div>
+        <div class="count" id="count"></div>
+        <div class="flash" id="flash"></div>
+        <div class="wm" id="wmPreview"></div>
+      </div>
+      <div class="cap" id="cap">our little moments</div>
+      <img class="sticker sticker-maple" src="assets/stamp-maple.png" alt="" />
+      <img class="sticker sticker-floral" src="assets/stamp-floral.png" alt="" />
+    </div>
+    <div class="msg" id="msg" hidden></div>
+    <button class="shoot" id="shootBtn">● JEPRET</button>
+    <div class="status" id="status">Siap. Tekan JEPRET lalu senyum ✌</div>
+  </section>
+ 
+  <section class="printer">
+    <div class="camera" id="camera">
+      <div class="cam-btn"></div>
+      <div class="cam-body">
+        <div class="cam-flash"></div><div class="cam-finder"></div>
+        <div class="cam-band"></div><div class="cam-lens"></div>
+        <div class="cam-slot"></div>
+      </div>
+    </div>
+    <div class="eject-window" id="ejectWindow">
+      <div class="strip-out" id="stripOut"><img id="stripImg" alt="hasil cetakan" /></div>
+    </div>
+    <div class="actions" id="actions" hidden>
+      <button class="opt" id="saveBtn">⬇ Simpan PNG</button>
+      <button class="opt" id="againBtn">↺ Ulangi</button>
+    </div>
+    <div class="printer-hint" id="printerHint">hasil cetakan keluar dari sini ↓</div>
+  </section>
+ 
+  <section class="puzzle-col">
+    <div class="p-frame">
+      <img class="tape tape-p" src="assets/tape-kraft.png" alt="" />
+      <div class="p-hud"><span id="pMoves">Langkah: 0</span><span id="pTime">00:00</span></div>
+      <div class="puzzle-empty" id="puzzleEmpty">Belum ada foto.<br>Tekan “AMBIL FOTO PUZZLE” 🧩</div>
+      <div class="board" id="board" hidden>
+        <div class="peek" id="peek" hidden></div>
+        <div class="wm" id="wmBoard"></div>
+      </div>
+    </div>
+    <div class="win" id="win" hidden><b id="winTxt"></b></div>
+    <div class="actions" id="pActions" hidden>
+      <button class="opt" id="pShuffleBtn">↻ Acak lagi</button>
+      <button class="opt" id="pPeekBtn">👁 Intip</button>
+      <button class="opt" id="pSaveBtn">⬇ Simpan</button>
+    </div>
+  </section>
+</main>
+ 
+<section class="panel">
+  <img class="panel-tape" src="assets/tape-red.png" alt="" />
+  <h3>Filter warna</h3>
+  <div class="row" data-key="filter">
+    <button class="opt" data-value="normal">Normal</button>
+    <button class="opt" data-value="bw">Hitam Putih</button>
+    <button class="opt" data-value="sepia">Sepia</button>
+    <button class="opt active" data-value="pudar">Pudar Jadul</button>
+  </div>
+  <h3>Tema kertas</h3>
+  <div class="row" data-key="theme">
+    <button class="opt active" data-value="krem">Krem</button>
+    <button class="opt" data-value="kraft">Kraft</button>
+    <button class="opt" data-value="film">Film Kopi</button>
+    <button class="opt" data-value="prangko">Prangko</button>
+  </div>
+  <div data-only="booth">
+    <h3>Susunan foto</h3>
+    <div class="row" data-key="layout">
+      <button class="opt" data-value="v1">1 foto</button>
+      <button class="opt" data-value="v2">2 ↓</button>
+      <button class="opt active" data-value="v3">3 ↓</button>
+      <button class="opt" data-value="v4">4 ↓</button>
+      <button class="opt" data-value="h2">2 →</button>
+      <button class="opt" data-value="g22">2×2</button>
+      <button class="opt" data-value="g33">3×3</button>
+    </div>
+  </div>
+  <div data-only="puzzle">
+    <h3>Ukuran puzzle</h3>
+    <div class="row" data-key="pn">
+      <button class="opt" data-value="2">2×2</button>
+      <button class="opt active" data-value="3">3×3</button>
+      <button class="opt" data-value="4">4×4</button>
+    </div>
+  </div>
+  <h3>Tulisan di foto</h3>
+  <div class="row"><input type="text" id="captionInput" maxlength="26" value="our little moments" /></div>
+  <h3>Watermark</h3>
+  <div class="row"><input type="text" id="wmInput" maxlength="24" placeholder="kosongkan kalau tidak mau" /></div>
+  <h3>Efek</h3>
+  <div class="row">
+    <label class="chk"><input type="checkbox" id="leakToggle" checked /> Light leak</label>
+    <label class="chk"><input type="checkbox" id="soundToggle" checked /> Suara</label>
+  </div>
+</section>
+ 
+<div class="page-wm" id="pageWm"></div>
+<canvas id="work" hidden></canvas>
+ 
+<script>
+const $ = (s) => document.querySelector(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const video = $("#webcam");
+const state = { mode: "booth", filter: "pudar", theme: "krem", layout: "v3", pn: 3, leak: true, sound: true, busy: false, url: null, wm: "by Bian" };
+try { const w = localStorage.getItem("pc_wm"); if (w !== null) state.wm = w; } catch (e) {}
+const cdFor = (i, t) => (window.__COUNT ? window.__COUNT : i === 0 ? 3 : t > 4 ? 1 : 2);
+ 
+const THEMES = {
+  krem:    { paper: "#F3E9D2", ink: "#4A3426", sub: "#8a6d52" },
+  kraft:   { paper: "#C9A57B", ink: "#3b2717", sub: "#6b4b2f" },
+  film:    { paper: "#1b110b", ink: "#E3B04B", sub: "#b59a6a" },
+  prangko: { paper: "#F5ECD7", ink: "#7a2e22", sub: "#8a6d52" },
+};
+const METRICS = { krem: { sm: 30, top: 40, foot: 130 }, kraft: { sm: 30, top: 40, foot: 130 }, film: { sm: 58, top: 44, foot: 126 }, prangko: { sm: 46, top: 56, foot: 148 } };
+const LAYOUTS = {
+  v1: { c: 1, r: 1, ar: 4 / 3, cw: 420, gap: 16 }, v2: { c: 1, r: 2, ar: 4 / 3, cw: 420, gap: 16 },
+  v3: { c: 1, r: 3, ar: 4 / 3, cw: 420, gap: 16 }, v4: { c: 1, r: 4, ar: 4 / 3, cw: 420, gap: 16 },
+  h2: { c: 2, r: 1, ar: 1, cw: 300, gap: 16 }, g22: { c: 2, r: 2, ar: 1, cw: 290, gap: 14 }, g33: { c: 3, r: 3, ar: 1, cw: 200, gap: 12 },
+};
+ 
+/* ---------- aset ---------- */
+const imgs = {};
+const loadImg = (src) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(i); i.src = src; });
+const assetsReady = Promise.all(Object.entries({
+  leak: "assets/light-leak.jpg", tapeCream: "assets/tape-cream.png", tapeRose: "assets/tape-rose.png",
+  tapeKraft: "assets/tape-kraft.png", stampFloral: "assets/stamp-floral.png", stampMaple: "assets/stamp-maple.png",
+}).map(async ([k, v]) => { imgs[k] = await loadImg(v); }));
+ 
+/* ---------- kamera ---------- */
+function showMsg(t) { const m = $("#msg"); m.textContent = t; m.hidden = false; }
+async function initCam() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showMsg("Kamera nggak bisa dipakai di sini. Buka lewat HTTPS atau localhost ya."); return;
+  }
+  try {
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch (e) { showMsg("Kamera gagal diakses: " + e.message + " — izinkan akses kamera di browser."); }
+}
+ 
+/* ---------- suara sintetis ---------- */
+let ac;
+function tone(f1, f2, dur, vol = 0.08, type = "square", delay = 0) {
+  if (!state.sound) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f1, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(f2, 1), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur);
+  } catch (e) {}
+}
+ 
+/* ---------- filter piksel (jalan di semua browser) ---------- */
+function applyFilter(x, w, h, mode) {
+  if (mode === "normal") return;
+  const id = x.getImageData(0, 0, w, h), d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], g = d[i + 1], b = d[i + 2];
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (mode === "bw") { r = g = b = (y - 128) * 1.1 + 128; }
+    else if (mode === "sepia") { const nr = .393*r + .769*g + .189*b, ng = .349*r + .686*g + .168*b, nb = .272*r + .534*g + .131*b; r = nr; g = ng; b = nb; }
+    else if (mode === "pudar") { r = y + (r - y) * .75; g = y + (g - y) * .75; b = y + (b - y) * .75; r = r * .85 + 46; g = g * .85 + 34; b = b * .85 + 20; }
+    d[i] = r; d[i + 1] = g; d[i + 2] = b;
+  }
+  x.putImageData(id, 0, 0);
+}
+ 
+function layoutFor(theme, key) {
+  const A = LAYOUTS[key], M = METRICS[theme], PW = A.cw, PH = Math.round(A.cw / A.ar);
+  return { W: 2 * M.sm + A.c * PW + (A.c - 1) * A.gap, H: M.top + A.r * PH + (A.r - 1) * A.gap + M.foot, PW, PH, sm: M.sm, top: M.top, gap: A.gap, c: A.c, r: A.r, n: A.c * A.r };
+}
+ 
+function grabShot(L, i) {
+  const c = document.createElement("canvas"); c.width = L.PW; c.height = L.PH;
+  const x = c.getContext("2d"), vw = video.videoWidth, vh = video.videoHeight, target = L.PW / L.PH;
+  let sw = vw, sh = vh, sx = 0, sy = 0;
+  if (vw / vh > target) { sw = vh * target; sx = (vw - sw) / 2; } else { sh = vw / target; sy = (vh - sh) / 2; }
+  x.save(); x.translate(L.PW, 0); x.scale(-1, 1); x.drawImage(video, sx, sy, sw, sh, 0, 0, L.PW, L.PH); x.restore();
+  applyFilter(x, L.PW, L.PH, state.filter);
+  if (state.leak && imgs.leak && imgs.leak.naturalWidth) {
+    const iw = imgs.leak.naturalWidth, ih = imgs.leak.naturalHeight, ch = Math.min(ih, iw * L.PH / L.PW);
+    const cy = Math.max(0, Math.min(ih - ch, i * ih * 0.2));
+    x.save(); x.globalCompositeOperation = "screen"; x.globalAlpha = 0.5; x.drawImage(imgs.leak, 0, cy, iw, ch, 0, 0, L.PW, L.PH); x.restore();
+  }
+  const g = x.createRadialGradient(L.PW / 2, L.PH / 2, L.PH * 0.35, L.PW / 2, L.PH / 2, L.PH * 0.85);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,15,5,.35)"); x.fillStyle = g; x.fillRect(0, 0, L.PW, L.PH);
+  const id = x.getImageData(0, 0, L.PW, L.PH), d = id.data;
+  for (let k = 0; k < d.length; k += 4) { const nz = (Math.random() - 0.5) * 20; d[k] += nz; d[k + 1] += nz; d[k + 2] += nz; }
+  x.putImageData(id, 0, 0);
+  return c;
+}
+ 
+function sticker(x, img, cx, cy, w, rot) {
+  if (!img || !img.naturalWidth) return;
+  const h = w * img.naturalHeight / img.naturalWidth;
+  x.save(); x.translate(cx, cy); x.rotate(rot * Math.PI / 180);
+  x.shadowColor = "rgba(0,0,0,.3)"; x.shadowBlur = 8; x.shadowOffsetY = 3; x.drawImage(img, -w / 2, -h / 2, w, h); x.restore();
+}
+function overlayWm(x, rx, by) {
+  if (!state.wm) return;
+  x.save(); x.textAlign = "right"; x.font = '16px "Special Elite", monospace'; x.fillStyle = "rgba(255,255,255,.92)";
+  x.shadowColor = "rgba(0,0,0,.75)"; x.shadowBlur = 4; x.fillText(state.wm, rx, by); x.restore();
+}
+async function loadFonts() { try { await Promise.all([document.fonts.load("38px Caveat"), document.fonts.load('16px "Special Elite"')]); } catch (e) {} }
+ 
+async function compose(shots, L) {
+  await assetsReady; await loadFonts();
+  const T = THEMES[state.theme], c = $("#work"); c.width = L.W; c.height = L.H;
+  const x = c.getContext("2d"); x.clearRect(0, 0, L.W, L.H);
+  x.fillStyle = T.paper; x.fillRect(0, 0, L.W, L.H);
+  for (let k = 0, m = Math.round(L.W * L.H / 500); k < m; k++) { x.fillStyle = `rgba(80,55,30,${Math.random() * 0.09})`; x.fillRect(Math.random() * L.W, Math.random() * L.H, 2, 2); }
+ 
+  if (state.theme === "film") {
+    x.fillStyle = "#d8c8a4";
+    for (let y = 16; y < L.H - 20; y += 34) { x.beginPath(); x.roundRect(18, y, 22, 16, 3); x.fill(); x.beginPath(); x.roundRect(L.W - 40, y, 22, 16, 3); x.fill(); }
+  }
+  if (state.theme === "prangko") {
+    x.globalCompositeOperation = "destination-out";
+    const R = 8, st = 26, hole = (px, py) => { x.beginPath(); x.arc(px, py, R, 0, Math.PI * 2); x.fill(); };
+    for (let px = st; px < L.W - st / 2; px += st) { hole(px, 0); hole(px, L.H); }
+    for (let py = st; py < L.H - st / 2; py += st) { hole(0, py); hole(L.W, py); }
+    x.globalCompositeOperation = "source-over";
+    x.strokeStyle = "rgba(122,46,34,.55)"; x.lineWidth = 2; x.strokeRect(22, 22, L.W - 44, L.H - 44);
+  }
+ 
+  shots.forEach((s, i) => {
+    const px = L.sm + (i % L.c) * (L.PW + L.gap), py = L.top + Math.floor(i / L.c) * (L.PH + L.gap);
+    x.drawImage(s, px, py);
+    if (state.theme !== "film") { x.strokeStyle = "rgba(40,22,10,.4)"; x.lineWidth = 2; x.strokeRect(px, py, L.PW, L.PH); }
+    if (i === shots.length - 1) overlayWm(x, px + L.PW - 10, py + L.PH - 10);
+  });
+ 
+  const wmY = L.H - (state.theme === "prangko" ? 36 : 18), dateY = wmY - 26, capY = dateY - 34;
+  x.textAlign = "center";
+  x.fillStyle = T.ink; x.font = "40px Caveat, cursive"; x.fillText($("#captionInput").value || " ", L.W / 2, capY);
+  x.fillStyle = T.sub; x.font = '15px "Special Elite", monospace';
+  x.fillText(new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase(), L.W / 2, dateY);
+  if (state.wm) { x.textAlign = "left"; x.fillStyle = T.sub; x.fillText(state.wm, L.sm, wmY); }
+ 
+  if (state.theme === "krem") { sticker(x, imgs.tapeCream, L.W / 2, 18, 130, -3); sticker(x, imgs.stampMaple, L.W - 58, L.H - 66, 84, 8); }
+  if (state.theme === "kraft") { sticker(x, imgs.tapeRose, 52, 34, 120, -40); sticker(x, imgs.stampFloral, L.W - 62, L.H - 72, 78, -7); }
+  if (state.theme === "prangko") { sticker(x, imgs.tapeKraft, L.W / 2, 22, 140, 2); }
+  return c;
+}
+ 
+/* ---------- alur jepret ---------- */
+function setStatus(t) { $("#status").textContent = t; }
+function lock(b) { state.busy = b; $("#shootBtn").disabled = b; document.querySelectorAll(".panel .opt, .tab").forEach((o) => (o.disabled = b)); }
+async function countdown(sec) {
+  const cd = $("#count");
+  for (let s = sec; s >= 1; s--) { cd.textContent = s; cd.classList.remove("pop"); void cd.offsetWidth; cd.classList.add("pop"); tone(660, 660, 0.09, 0.06, "sine"); await sleep(1000); }
+  cd.textContent = "";
+}
+function flash() { const f = $("#flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); tone(1800, 300, 0.05, 0.12); tone(900, 200, 0.07, 0.1, "square", 0.06); }
+function resetPrint() {
+  $("#stripOut").classList.remove("go"); $("#ejectWindow").style.height = "0"; $("#actions").hidden = true; $("#printerHint").hidden = false; state.url = null;
+}
+ 
+async function shoot() {
+  if (state.busy) return;
+  if (!video.videoWidth) { showMsg("Kamera belum siap. Izinkan akses kamera dulu."); return; }
+  if (state.mode === "puzzle") return shootPuzzle();
+  lock(true); resetPrint();
+  const L = layoutFor(state.theme, state.layout), shots = [];
+  for (let i = 0; i < L.n; i++) {
+    setStatus(`Foto ${i + 1} dari ${L.n} — siap-siap…`);
+    await countdown(cdFor(i, L.n)); flash(); shots.push(grabShot(L, i)); await sleep(500);
+  }
+  setStatus("Mencetak…");
+  const c = await compose(shots, L);
+  state.url = c.toDataURL("image/png");
+  const img = $("#stripImg"); img.src = state.url; try { await img.decode(); } catch (e) {}
+  const dw = c.width > c.height * 0.9 ? 256 : 220, ew = $("#ejectWindow");
+  $("#printerHint").hidden = true; ew.style.width = dw + "px"; ew.style.height = Math.round(dw * c.height / c.width) + "px";
+  const so = $("#stripOut"); so.classList.remove("go"); void so.offsetWidth; so.classList.add("go");
+  const cam = $("#camera"); cam.classList.add("shake"); tone(90, 150, 1.8, 0.05, "sawtooth");
+  await sleep(4100); cam.classList.remove("shake");
+  $("#actions").hidden = false; setStatus("Sudah jadi! Simpan atau ulangi lagi.");
+  lock(false);
+}
+ 
+/* ---------- PUZZLE GESER ---------- */
+const P = { n: 3, pos: [], tiles: [], src: null, url: null, moves: 0, t0: 0, elapsed: 0, timer: null, solved: false, started: false };
+window.P = P;
+const board = $("#board");
+const fmt = (s) => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+const isSolved = () => P.pos.every((id, i) => id === i);
+ 
+function buildBoard() {
+  board.querySelectorAll(".tile").forEach((t) => t.remove());
+  const n = P.n, N = n * n; P.tiles = [];
+  for (let id = 0; id < N; id++) {
+    const t = document.createElement("div"); t.className = "tile" + (id === N - 1 ? " blank" : ""); t.dataset.id = id;
+    const r = Math.floor(id / n), c = id % n;
+    t.style.width = t.style.height = 100 / n + "%";
+    t.style.backgroundImage = `url(${P.url})`; t.style.backgroundSize = `${n * 100}% ${n * 100}%`;
+    t.style.backgroundPosition = `${(c / (n - 1)) * 100}% ${(r / (n - 1)) * 100}%`;
+    t.innerHTML = "<span>" + (id + 1) + "</span>";
+    t.addEventListener("click", () => pTap(id));
+    board.insertBefore(t, $("#peek")); P.tiles[id] = t;
+  }
+}
+function pRender() {
+  P.pos.forEach((id, cell) => { P.tiles[id].style.transform = `translate(${(cell % P.n) * 100}%,${Math.floor(cell / P.n) * 100}%)`; });
+  $("#pMoves").textContent = "Langkah: " + P.moves;
+}
+function pShuffle() {
+  const n = P.n, N = n * n; P.pos = [...Array(N).keys()]; let b = N - 1, prev = -1;
+  for (let k = 0; k < N * 25; k++) {
+    const r = Math.floor(b / n), c = b % n, nb = [];
+    if (r > 0) nb.push(b - n); if (r < n - 1) nb.push(b + n); if (c > 0) nb.push(b - 1); if (c < n - 1) nb.push(b + 1);
+    const opts = nb.filter((v) => v !== prev), m = opts[Math.floor(Math.random() * opts.length)];
+    P.pos[b] = P.pos[m]; P.pos[m] = N - 1; prev = b; b = m;
+  }
+  if (isSolved()) pShuffle();
+}
+function pStart(src) {
+  clearInterval(P.timer);
+  P.n = state.pn; P.src = src; P.url = src.toDataURL("image/jpeg", 0.92);
+  P.moves = 0; P.started = false; P.solved = false; P.elapsed = 0;
+  $("#pTime").textContent = "00:00"; $("#win").hidden = true; board.classList.remove("done");
+  $("#puzzleEmpty").hidden = true; board.hidden = false; $("#pActions").hidden = false;
+  $("#peek").hidden = true; $("#peek").style.backgroundImage = `url(${P.url})`;
+  buildBoard(); pShuffle(); pRender();
+}
+function tick() { P.elapsed = Math.floor((Date.now() - P.t0) / 1000); $("#pTime").textContent = fmt(P.elapsed); }
+function pMoveCell(cell, b) {
+  const N = P.n * P.n; P.pos[b] = P.pos[cell]; P.pos[cell] = N - 1; P.moves++;
+  if (!P.started) { P.started = true; P.t0 = Date.now(); P.timer = setInterval(tick, 500); }
+  tone(300, 260, 0.05, 0.05, "square"); pRender(); if (isSolved()) pWin();
+}
+function pTap(id) {
+  if (P.solved || !P.url) return;
+  const n = P.n, cell = P.pos.indexOf(id), b = P.pos.indexOf(n * n - 1);
+  if (Math.abs(Math.floor(cell / n) - Math.floor(b / n)) + Math.abs((cell % n) - (b % n)) === 1) pMoveCell(cell, b);
+}
+function pWin() {
+  P.solved = true; clearInterval(P.timer); tick();
+  board.classList.add("done"); $("#peek").hidden = true;
+  $("#winTxt").textContent = `SELESAI! ${P.moves} langkah · ${fmt(P.elapsed)}`; $("#win").hidden = false;
+  tone(523, 523, 0.12, 0.08, "sine"); tone(659, 659, 0.12, 0.08, "sine", 0.13); tone(784, 784, 0.28, 0.08, "sine", 0.26);
+}
+async function shootPuzzle() {
+  lock(true); setStatus("Siap-siap foto puzzle…");
+  await countdown(cdFor(0, 1)); flash(); const c = grabShot({ PW: 600, PH: 600 }, 0); await sleep(400);
+  pStart(c); setStatus("Geser kepingan ke ruang kosong. Selamat menyusun! 🧩"); lock(false);
+}
+async function pSave() {
+  if (!P.src) return; await loadFonts();
+  const T = THEMES[state.theme], S = 600, m = 36, c = document.createElement("canvas"); c.width = S + 2 * m; c.height = S + 2 * m + 96;
+  const x = c.getContext("2d"); x.fillStyle = T.paper; x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(P.src, m, m, S, S); x.strokeStyle = "rgba(40,22,10,.45)"; x.lineWidth = 2; x.strokeRect(m, m, S, S);
+  overlayWm(x, m + S - 12, m + S - 12);
+  x.textAlign = "center"; x.fillStyle = T.ink; x.font = "36px Caveat, cursive";
+  x.fillText(P.solved ? `puzzle selesai · ${P.moves} langkah · ${fmt(P.elapsed)}` : ($("#captionInput").value || " "), c.width / 2, S + m + 56);
+  if (state.wm) { x.textAlign = "right"; x.fillStyle = T.sub; x.font = '15px "Special Elite", monospace'; x.fillText(state.wm, c.width - m, c.height - 16); }
+  const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = "puzzle-" + Date.now() + ".png"; a.click();
+}
+$("#pShuffleBtn").addEventListener("click", () => { if (P.src) pStart(P.src); });
+$("#pPeekBtn").addEventListener("click", () => { if (P.url && !P.solved) $("#peek").hidden = !$("#peek").hidden; });
+$("#peek").addEventListener("click", () => { $("#peek").hidden = true; });
+$("#pSaveBtn").addEventListener("click", pSave);
+addEventListener("keydown", (e) => {
+  if (state.mode !== "puzzle" || !P.url || P.solved || (document.activeElement && document.activeElement.tagName === "INPUT")) return;
+  const n = P.n, b = P.pos.indexOf(n * n - 1), r = Math.floor(b / n), c = b % n; let cell = -1;
+  if (e.key === "ArrowUp" && r < n - 1) cell = b + n; else if (e.key === "ArrowDown" && r > 0) cell = b - n;
+  else if (e.key === "ArrowLeft" && c < n - 1) cell = b + 1; else if (e.key === "ArrowRight" && c > 0) cell = b - 1;
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) e.preventDefault();
+  if (cell >= 0) pMoveCell(cell, b);
+});
+ 
+/* ---------- kontrol ---------- */
+function applyState() {
+  const b = document.body; b.dataset.theme = state.theme; b.dataset.filter = state.filter; b.dataset.mode = state.mode; b.classList.toggle("leak-on", state.leak);
+  const ar = state.mode === "puzzle" ? 1 : LAYOUTS[state.layout].ar;
+  document.documentElement.style.setProperty("--ar", ar === 1 ? "1 / 1" : "4 / 3");
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === state.mode));
+  $("#shootBtn").textContent = state.mode === "puzzle" ? "● AMBIL FOTO PUZZLE" : "● JEPRET";
+  ["#wmPreview", "#pageWm", "#wmBoard"].forEach((s) => ($(s).textContent = state.wm || ""));
+}
+document.querySelectorAll(".row[data-key]").forEach((row) => row.addEventListener("click", (e) => {
+  const b = e.target.closest(".opt"); if (!b || state.busy) return;
+  row.querySelectorAll(".opt").forEach((o) => o.classList.remove("active")); b.classList.add("active");
+  const k = row.dataset.key; state[k] = k === "pn" ? +b.dataset.value : b.dataset.value; applyState();
+  if (k === "pn" && P.src) pStart(P.src);
+}));
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  if (state.busy) return; state.mode = t.dataset.mode; applyState();
+  setStatus(state.mode === "puzzle" ? "Ambil satu foto, lalu susun jadi puzzle 🧩" : "Siap. Tekan JEPRET lalu senyum ✌");
+}));
+$("#leakToggle").addEventListener("change", (e) => { state.leak = e.target.checked; applyState(); });
+$("#soundToggle").addEventListener("change", (e) => { state.sound = e.target.checked; });
+$("#captionInput").addEventListener("input", (e) => { $("#cap").textContent = e.target.value; });
+$("#wmInput").addEventListener("input", (e) => { state.wm = e.target.value; applyState(); try { localStorage.setItem("pc_wm", state.wm); } catch (er) {} });
+$("#shootBtn").addEventListener("click", shoot);
+$("#againBtn").addEventListener("click", () => { resetPrint(); setStatus("Siap. Tekan JEPRET lalu senyum ✌"); });
+$("#saveBtn").addEventListener("click", () => {
+  if (!state.url) return;
+  const a = document.createElement("a"); a.href = state.url; a.download = "puzzlecam-" + Date.now() + ".png"; a.click();
+});
+ 
+$("#wmInput").value = state.wm; applyState(); initCam();
+</script>
+</body>
+</html> 
